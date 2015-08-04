@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.ArrayRes;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
@@ -17,7 +18,8 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -36,7 +38,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * <p>
@@ -54,7 +55,7 @@ import java.util.Locale;
  * {@linkplain com.prolificinteractive.materialcalendarview.OnDateChangedListener}
  * </p>
  */
-public class MaterialCalendarView extends FrameLayout {
+public class MaterialCalendarView extends ViewGroup {
 
     /**
      * Default tile size in DIPs
@@ -259,7 +260,6 @@ public class MaterialCalendarView extends FrameLayout {
                 tileSize * MonthView.DEFAULT_DAYS_IN_WEEK,
                 tileSize * (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1)
         );
-        p.gravity = Gravity.CENTER;
         addView(root, p);
 
         topbar = new LinearLayout(getContext());
@@ -339,7 +339,6 @@ public class MaterialCalendarView extends FrameLayout {
                     size * (MonthView.DEFAULT_MONTH_TILE_HEIGHT)
             );
         }
-        p.gravity = Gravity.CENTER;
         root.setLayoutParams(p);
     }
 
@@ -1209,6 +1208,269 @@ public class MaterialCalendarView extends FrameLayout {
 
         public int getFirstDayOfWeek() {
             return firstDayOfTheWeek;
+        }
+    }
+
+    /*
+     * Custom ViewGroup Code
+     */
+    private static final int DEFAULT_CHILD_GRAVITY = Gravity.TOP | Gravity.START;
+
+    private final ArrayList<View> mMatchParentChildren = new ArrayList<>(1);
+
+    /**
+     * Returns a set of layout parameters with a width of
+     * {@link android.view.ViewGroup.LayoutParams#MATCH_PARENT},
+     * and a height of {@link android.view.ViewGroup.LayoutParams#MATCH_PARENT}.
+     */
+    @Override
+    protected LayoutParams generateDefaultLayoutParams() {
+        return new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int count = getChildCount();
+
+        final boolean measureMatchParentChildren =
+                MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.EXACTLY ||
+                        MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.EXACTLY;
+        mMatchParentChildren.clear();
+
+        int maxHeight = 0;
+        int maxWidth = 0;
+        int childState = 0;
+
+        for (int i = 0; i < count; i++) {
+            final View child = getChildAt(i);
+            if (child.getVisibility() != GONE) {
+                measureChildWithMargins(child, widthMeasureSpec, 0, heightMeasureSpec, 0);
+                final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+                maxWidth = Math.max(maxWidth,
+                        child.getMeasuredWidth() + lp.leftMargin + lp.rightMargin);
+                maxHeight = Math.max(maxHeight,
+                        child.getMeasuredHeight() + lp.topMargin + lp.bottomMargin);
+                childState = combineMeasuredStates(childState, child.getMeasuredState());
+                if (measureMatchParentChildren) {
+                    if (lp.width == LayoutParams.MATCH_PARENT ||
+                            lp.height == LayoutParams.MATCH_PARENT) {
+                        mMatchParentChildren.add(child);
+                    }
+                }
+            }
+        }
+
+        // Account for padding too
+        maxWidth += getPaddingLeft() + getPaddingRight();
+        maxHeight += getPaddingTop() + getPaddingBottom();
+
+        // Check against our minimum height and width
+        maxHeight = Math.max(maxHeight, getSuggestedMinimumHeight());
+        maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
+
+        setMeasuredDimension(resolveSizeAndState(maxWidth, widthMeasureSpec, childState),
+                resolveSizeAndState(maxHeight, heightMeasureSpec,
+                        childState << MEASURED_HEIGHT_STATE_SHIFT));
+
+        count = mMatchParentChildren.size();
+        if (count > 1) {
+            for (int i = 0; i < count; i++) {
+                final View child = mMatchParentChildren.get(i);
+
+                final MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
+                int childWidthMeasureSpec;
+                int childHeightMeasureSpec;
+
+                if (lp.width == LayoutParams.MATCH_PARENT) {
+                    childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(getMeasuredWidth() -
+                                    getPaddingLeft() - getPaddingRight() -
+                                    lp.leftMargin - lp.rightMargin,
+                            MeasureSpec.EXACTLY);
+                } else {
+                    childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
+                            getPaddingLeft() + getPaddingRight() +
+                                    lp.leftMargin + lp.rightMargin,
+                            lp.width);
+                }
+
+                if (lp.height == LayoutParams.MATCH_PARENT) {
+                    childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(getMeasuredHeight() -
+                                    getPaddingTop() - getPaddingBottom() -
+                                    lp.topMargin - lp.bottomMargin,
+                            MeasureSpec.EXACTLY);
+                } else {
+                    childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
+                            getPaddingTop() + getPaddingBottom() +
+                                    lp.topMargin + lp.bottomMargin,
+                            lp.height);
+                }
+
+                child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
+            }
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        layoutChildren(left, top, right, bottom, false /* no force left gravity */);
+    }
+
+    void layoutChildren(int left, int top, int right, int bottom,
+                        boolean forceLeftGravity) {
+        final int count = getChildCount();
+
+        final int parentLeft = getPaddingLeft();
+        final int parentRight = right - left - getPaddingRight();
+
+        final int parentTop = getPaddingTop();
+        final int parentBottom = bottom - top - getPaddingBottom();
+
+        for (int i = 0; i < count; i++) {
+            final View child = getChildAt(i);
+            if (child.getVisibility() != GONE) {
+                final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+
+                final int width = child.getMeasuredWidth();
+                final int height = child.getMeasuredHeight();
+
+                int childLeft;
+                int childTop;
+
+                int gravity = DEFAULT_CHILD_GRAVITY;
+
+                final int layoutDirection = getLayoutDirection();
+                final int absoluteGravity = Gravity.getAbsoluteGravity(gravity, layoutDirection);
+                final int verticalGravity = gravity & Gravity.VERTICAL_GRAVITY_MASK;
+
+                switch (absoluteGravity & Gravity.HORIZONTAL_GRAVITY_MASK) {
+                    case Gravity.CENTER_HORIZONTAL:
+                        childLeft = parentLeft + (parentRight - parentLeft - width) / 2 +
+                                lp.leftMargin - lp.rightMargin;
+                        break;
+                    case Gravity.RIGHT:
+                        if (!forceLeftGravity) {
+                            childLeft = parentRight - width - lp.rightMargin;
+                            break;
+                        }
+                    case Gravity.LEFT:
+                    default:
+                        childLeft = parentLeft + lp.leftMargin;
+                }
+
+                switch (verticalGravity) {
+                    case Gravity.TOP:
+                        childTop = parentTop + lp.topMargin;
+                        break;
+                    case Gravity.CENTER_VERTICAL:
+                        childTop = parentTop + (parentBottom - parentTop - height) / 2 +
+                                lp.topMargin - lp.bottomMargin;
+                        break;
+                    case Gravity.BOTTOM:
+                        childTop = parentBottom - height - lp.bottomMargin;
+                        break;
+                    default:
+                        childTop = parentTop + lp.topMargin;
+                }
+
+                child.layout(childLeft, childTop, childLeft + width, childTop + height);
+            }
+        }
+    }
+
+    @SuppressWarnings("ResourceType")
+    @Override
+    public int getLayoutDirection() {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            return super.getLayoutDirection();
+        }
+        else {
+            return 0;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public LayoutParams generateLayoutParams(AttributeSet attrs) {
+        return new LayoutParams(getContext(), attrs);
+    }
+
+    @Override
+    public boolean shouldDelayChildPressedState() {
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected boolean checkLayoutParams(ViewGroup.LayoutParams p) {
+        return p instanceof LayoutParams;
+    }
+
+    @Override
+    protected ViewGroup.LayoutParams generateLayoutParams(ViewGroup.LayoutParams p) {
+        return new LayoutParams(p);
+    }
+
+
+    @Override
+    public void onInitializeAccessibilityEvent(@NonNull AccessibilityEvent event) {
+        super.onInitializeAccessibilityEvent(event);
+        event.setClassName(MaterialCalendarView.class.getName());
+    }
+
+    @Override
+    public void onInitializeAccessibilityNodeInfo(@NonNull AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(info);
+        info.setClassName(MaterialCalendarView.class.getName());
+    }
+
+    private static class LayoutParams extends MarginLayoutParams {
+
+        /**
+         * {@inheritDoc}
+         */
+        public LayoutParams(Context c, AttributeSet attrs) {
+            super(c, attrs);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public LayoutParams(int width, int height) {
+            super(width, height);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public LayoutParams(ViewGroup.LayoutParams source) {
+            super(source);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public LayoutParams(ViewGroup.MarginLayoutParams source) {
+            super(source);
+        }
+
+        /**
+         * Copy constructor. Clones the width, height, margin values, and
+         * gravity of the source.
+         *
+         * @param source The layout params to copy from.
+         */
+        public LayoutParams(LayoutParams source) {
+            super(source);
         }
     }
 }
