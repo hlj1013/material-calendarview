@@ -1006,16 +1006,14 @@ public class MaterialCalendarView extends ViewGroup {
 
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
-            if (child.getVisibility() != GONE) {
-                final LayoutParams lp = (LayoutParams) child.getLayoutParams();
+            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
 
-                final int width = child.getMeasuredWidth();
-                final int height = child.getMeasuredHeight();
+            final int width = child.getMeasuredWidth();
+            final int height = child.getMeasuredHeight();
 
-                child.layout(parentLeft, childTop, parentLeft + width, childTop + height);
+            child.layout(parentLeft, childTop, parentLeft + width, childTop + height);
 
-                childTop += height;
-            }
+            childTop += height;
         }
     }
 
