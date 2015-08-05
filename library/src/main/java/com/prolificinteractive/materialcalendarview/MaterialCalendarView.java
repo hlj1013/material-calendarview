@@ -124,6 +124,7 @@ public class MaterialCalendarView extends ViewGroup {
     private int arrowColor = Color.BLACK;
     private Drawable leftArrowMask;
     private Drawable rightArrowMask;
+    private int tileSize;
 
     private LinearLayout root;
 
@@ -170,6 +171,9 @@ public class MaterialCalendarView extends ViewGroup {
             int tileSize = a.getDimensionPixelSize(R.styleable.MaterialCalendarView_mcv_tileSize, -1);
             if(tileSize > 0) {
                 setTileSize(tileSize);
+            }
+            else {
+                setTileSizeDp(DEFAULT_TILE_SIZE_DP);
             }
 
             setArrowColor(a.getColor(
@@ -246,21 +250,11 @@ public class MaterialCalendarView extends ViewGroup {
     }
 
     private void setupChildren() {
-        int tileSize = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                DEFAULT_TILE_SIZE_DP,
-                getResources().getDisplayMetrics()
-        );
-
         root = new LinearLayout(getContext());
         root.setOrientation(LinearLayout.VERTICAL);
         root.setClipChildren(false);
         root.setClipToPadding(false);
-        LayoutParams p = new LayoutParams(
-                tileSize * MonthView.DEFAULT_DAYS_IN_WEEK,
-                tileSize * (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1)
-        );
-        addView(root, p);
+        addView(root);
 
         topbar = new LinearLayout(getContext());
         topbar.setOrientation(LinearLayout.HORIZONTAL);
@@ -316,7 +310,7 @@ public class MaterialCalendarView extends ViewGroup {
      * @return the size of tiles in pixels
      */
     public int getTileSize() {
-        return root.getLayoutParams().width / MonthView.DEFAULT_DAYS_IN_WEEK;
+        return tileSize;
     }
 
     /**
@@ -327,19 +321,8 @@ public class MaterialCalendarView extends ViewGroup {
      * @param size the new size for each tile in pixels
      */
     public void setTileSize(int size) {
-        LayoutParams p;
-        if (getTopbarVisible()) {
-            p = new LayoutParams(
-                    size * MonthView.DEFAULT_DAYS_IN_WEEK,
-                    size * (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1)
-            );
-        } else { // topbar.getVisibility() == View.GONE
-            p = new LayoutParams(
-                    size * MonthView.DEFAULT_DAYS_IN_WEEK,
-                    size * (MonthView.DEFAULT_MONTH_TILE_HEIGHT)
-            );
-        }
-        root.setLayoutParams(p);
+        this.tileSize = size;
+        requestLayout();
     }
 
     /**
@@ -751,13 +734,13 @@ public class MaterialCalendarView extends ViewGroup {
     }
 
     @Override
-    protected void dispatchSaveInstanceState(SparseArray<Parcelable> container) {
+    protected void dispatchSaveInstanceState(@NonNull SparseArray<Parcelable> container) {
         //super.dispatchSaveInstanceState(container);
         super.dispatchFreezeSelfOnly(container);
     }
 
     @Override
-    protected void dispatchRestoreInstanceState(SparseArray<Parcelable> container) {
+    protected void dispatchRestoreInstanceState(@NonNull SparseArray<Parcelable> container) {
         //super.dispatchRestoreInstanceState(container);
         super.dispatchThawSelfOnly(container);
     }
@@ -1214,9 +1197,6 @@ public class MaterialCalendarView extends ViewGroup {
     /*
      * Custom ViewGroup Code
      */
-    private static final int DEFAULT_CHILD_GRAVITY = Gravity.TOP | Gravity.START;
-
-    private final ArrayList<View> mMatchParentChildren = new ArrayList<>(1);
 
     /**
      * Returns a set of layout parameters with a width of
@@ -1225,7 +1205,7 @@ public class MaterialCalendarView extends ViewGroup {
      */
     @Override
     protected LayoutParams generateDefaultLayoutParams() {
-        return new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        return new LayoutParams(LayoutParams.MATCH_PARENT);
     }
 
     /**
@@ -1233,35 +1213,8 @@ public class MaterialCalendarView extends ViewGroup {
      */
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int count = getChildCount();
-
-        final boolean measureMatchParentChildren =
-                MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.EXACTLY ||
-                        MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.EXACTLY;
-        mMatchParentChildren.clear();
-
-        int maxHeight = 0;
-        int maxWidth = 0;
-        int childState = 0;
-
-        for (int i = 0; i < count; i++) {
-            final View child = getChildAt(i);
-            if (child.getVisibility() != GONE) {
-                measureChildWithMargins(child, widthMeasureSpec, 0, heightMeasureSpec, 0);
-                final LayoutParams lp = (LayoutParams) child.getLayoutParams();
-                maxWidth = Math.max(maxWidth,
-                        child.getMeasuredWidth() + lp.leftMargin + lp.rightMargin);
-                maxHeight = Math.max(maxHeight,
-                        child.getMeasuredHeight() + lp.topMargin + lp.bottomMargin);
-                childState = combineMeasuredStates(childState, child.getMeasuredState());
-                if (measureMatchParentChildren) {
-                    if (lp.width == LayoutParams.MATCH_PARENT ||
-                            lp.height == LayoutParams.MATCH_PARENT) {
-                        mMatchParentChildren.add(child);
-                    }
-                }
-            }
-        }
+        int maxWidth = tileSize * MonthView.DEFAULT_DAYS_IN_WEEK;
+        int maxHeight = tileSize * (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1);
 
         // Account for padding too
         maxWidth += getPaddingLeft() + getPaddingRight();
@@ -1271,45 +1224,25 @@ public class MaterialCalendarView extends ViewGroup {
         maxHeight = Math.max(maxHeight, getSuggestedMinimumHeight());
         maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
 
-        setMeasuredDimension(resolveSizeAndState(maxWidth, widthMeasureSpec, childState),
-                resolveSizeAndState(maxHeight, heightMeasureSpec,
-                        childState << MEASURED_HEIGHT_STATE_SHIFT));
+        setMeasuredDimension(MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.EXACTLY));
 
-        count = mMatchParentChildren.size();
-        if (count > 1) {
-            for (int i = 0; i < count; i++) {
-                final View child = mMatchParentChildren.get(i);
+        int count = getChildCount();
 
-                final MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
-                int childWidthMeasureSpec;
-                int childHeightMeasureSpec;
+        for (int i = 0; i < count; i++) {
+            final View child = getChildAt(i);
 
-                if (lp.width == LayoutParams.MATCH_PARENT) {
-                    childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(getMeasuredWidth() -
-                                    getPaddingLeft() - getPaddingRight() -
-                                    lp.leftMargin - lp.rightMargin,
-                            MeasureSpec.EXACTLY);
-                } else {
-                    childWidthMeasureSpec = getChildMeasureSpec(widthMeasureSpec,
-                            getPaddingLeft() + getPaddingRight() +
-                                    lp.leftMargin + lp.rightMargin,
-                            lp.width);
-                }
+            int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
+                    getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
+                    MeasureSpec.EXACTLY
+            );
 
-                if (lp.height == LayoutParams.MATCH_PARENT) {
-                    childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(getMeasuredHeight() -
-                                    getPaddingTop() - getPaddingBottom() -
-                                    lp.topMargin - lp.bottomMargin,
-                            MeasureSpec.EXACTLY);
-                } else {
-                    childHeightMeasureSpec = getChildMeasureSpec(heightMeasureSpec,
-                            getPaddingTop() + getPaddingBottom() +
-                                    lp.topMargin + lp.bottomMargin,
-                            lp.height);
-                }
+            int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
+                    getMeasuredHeight() - getPaddingTop() - getPaddingBottom(),
+                    MeasureSpec.EXACTLY
+            );
 
-                child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
-            }
+            child.measure(childWidthMeasureSpec, childHeightMeasureSpec);
         }
     }
 
@@ -1318,11 +1251,6 @@ public class MaterialCalendarView extends ViewGroup {
      */
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        layoutChildren(left, top, right, bottom, false /* no force left gravity */);
-    }
-
-    void layoutChildren(int left, int top, int right, int bottom,
-                        boolean forceLeftGravity) {
         final int count = getChildCount();
 
         final int parentLeft = getPaddingLeft();
@@ -1339,58 +1267,11 @@ public class MaterialCalendarView extends ViewGroup {
                 final int width = child.getMeasuredWidth();
                 final int height = child.getMeasuredHeight();
 
-                int childLeft;
-                int childTop;
-
-                int gravity = DEFAULT_CHILD_GRAVITY;
-
-                final int layoutDirection = getLayoutDirection();
-                final int absoluteGravity = Gravity.getAbsoluteGravity(gravity, layoutDirection);
-                final int verticalGravity = gravity & Gravity.VERTICAL_GRAVITY_MASK;
-
-                switch (absoluteGravity & Gravity.HORIZONTAL_GRAVITY_MASK) {
-                    case Gravity.CENTER_HORIZONTAL:
-                        childLeft = parentLeft + (parentRight - parentLeft - width) / 2 +
-                                lp.leftMargin - lp.rightMargin;
-                        break;
-                    case Gravity.RIGHT:
-                        if (!forceLeftGravity) {
-                            childLeft = parentRight - width - lp.rightMargin;
-                            break;
-                        }
-                    case Gravity.LEFT:
-                    default:
-                        childLeft = parentLeft + lp.leftMargin;
-                }
-
-                switch (verticalGravity) {
-                    case Gravity.TOP:
-                        childTop = parentTop + lp.topMargin;
-                        break;
-                    case Gravity.CENTER_VERTICAL:
-                        childTop = parentTop + (parentBottom - parentTop - height) / 2 +
-                                lp.topMargin - lp.bottomMargin;
-                        break;
-                    case Gravity.BOTTOM:
-                        childTop = parentBottom - height - lp.bottomMargin;
-                        break;
-                    default:
-                        childTop = parentTop + lp.topMargin;
-                }
+                int childLeft = parentLeft;
+                int childTop = parentTop;
 
                 child.layout(childLeft, childTop, childLeft + width, childTop + height);
             }
-        }
-    }
-
-    @SuppressWarnings("ResourceType")
-    @Override
-    public int getLayoutDirection() {
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            return super.getLayoutDirection();
-        }
-        else {
-            return 0;
         }
     }
 
@@ -1445,31 +1326,14 @@ public class MaterialCalendarView extends ViewGroup {
         /**
          * {@inheritDoc}
          */
-        public LayoutParams(int width, int height) {
-            super(width, height);
+        public LayoutParams(int height) {
+            super(MATCH_PARENT, height);
         }
 
         /**
          * {@inheritDoc}
          */
         public LayoutParams(ViewGroup.LayoutParams source) {
-            super(source);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        public LayoutParams(ViewGroup.MarginLayoutParams source) {
-            super(source);
-        }
-
-        /**
-         * Copy constructor. Clones the width, height, margin values, and
-         * gravity of the source.
-         *
-         * @param source The layout params to copy from.
-         */
-        public LayoutParams(LayoutParams source) {
             super(source);
         }
     }
