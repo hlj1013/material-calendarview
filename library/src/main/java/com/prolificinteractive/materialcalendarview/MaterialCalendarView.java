@@ -983,9 +983,8 @@ public class MaterialCalendarView extends ViewGroup {
                     MeasureSpec.EXACTLY
             );
 
-            int height = p.height * measureTileSize;
             int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
-                    height - getPaddingTop() - getPaddingBottom(),
+                    p.height * measureTileSize,
                     MeasureSpec.EXACTLY
             );
 
