@@ -933,21 +933,42 @@ public class MaterialCalendarView extends ViewGroup {
      * {@inheritDoc}
      */
     @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int maxWidth = tileSize * MonthView.DEFAULT_DAYS_IN_WEEK;
-        int maxHeight = tileSize * (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1);
+    protected void onMeasure(final int widthMeasureSpec, final int heightMeasureSpec) {
+        final int specWidthSize = MeasureSpec.getSize(widthMeasureSpec);
+        final int specWidthMode = MeasureSpec.getMode(widthMeasureSpec);
+        final int specHeightSize = MeasureSpec.getSize(heightMeasureSpec);
+        final int specHeightMode = MeasureSpec.getMode(heightMeasureSpec);
 
-        // Account for padding too
-        maxWidth += getPaddingLeft() + getPaddingRight();
-        maxHeight += getPaddingTop() + getPaddingBottom();
+        final int desiredWidth = specWidthSize - getPaddingLeft() - getPaddingRight();
+        final int desiredHeight = specHeightSize - getPaddingTop() - getPaddingBottom();
 
-        // Check against our minimum height and width
-        maxHeight = Math.max(maxHeight, getSuggestedMinimumHeight());
-        maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
+        final int viewTileHieght = getTopbarVisible() ?
+                (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1) :
+                MonthView.DEFAULT_MONTH_TILE_HEIGHT;
+        int measureTileSize = this.tileSize;
+
+        switch (specWidthMode) {
+            case MeasureSpec.AT_MOST:
+            case MeasureSpec.EXACTLY: {
+                switch (specHeightMode) {
+                    case MeasureSpec.AT_MOST:
+                    case MeasureSpec.EXACTLY: {
+                        int desiredTileWidth = desiredWidth / MonthView.DEFAULT_DAYS_IN_WEEK;
+                        int desiredTileHeight = desiredHeight / viewTileHieght;
+                        measureTileSize = Math.min(desiredTileWidth, desiredTileHeight);
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+
+        int measuredWidth = measureTileSize * MonthView.DEFAULT_DAYS_IN_WEEK;
+        int measuredHeight = measureTileSize * viewTileHieght;
 
         setMeasuredDimension(
-                MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.EXACTLY)
+                measuredWidth + getPaddingLeft() + getPaddingRight(),
+                measuredHeight + getPaddingTop() + getPaddingBottom()
         );
 
         int count = getChildCount();
@@ -962,7 +983,7 @@ public class MaterialCalendarView extends ViewGroup {
                     MeasureSpec.EXACTLY
             );
 
-            int height = p.height * tileSize;
+            int height = p.height * measureTileSize;
             int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
                     height - getPaddingTop() - getPaddingBottom(),
                     MeasureSpec.EXACTLY
@@ -980,10 +1001,7 @@ public class MaterialCalendarView extends ViewGroup {
         final int count = getChildCount();
 
         final int parentLeft = getPaddingLeft();
-        final int parentRight = right - left - getPaddingRight();
-
         final int parentTop = getPaddingTop();
-        final int parentBottom = bottom - top - getPaddingBottom();
 
         int childTop = parentTop;
 
