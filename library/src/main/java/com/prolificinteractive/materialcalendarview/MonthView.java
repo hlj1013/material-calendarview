@@ -326,7 +326,7 @@ class MonthView extends ViewGroup implements View.OnClickListener {
      */
     @Override
     public LayoutParams generateLayoutParams(AttributeSet attrs) {
-        return new LayoutParams(getContext(), attrs);
+        return new LayoutParams();
     }
 
     @Override
@@ -344,7 +344,7 @@ class MonthView extends ViewGroup implements View.OnClickListener {
 
     @Override
     protected ViewGroup.LayoutParams generateLayoutParams(ViewGroup.LayoutParams p) {
-        return new LayoutParams(p);
+        return new LayoutParams();
     }
 
 
@@ -360,27 +360,16 @@ class MonthView extends ViewGroup implements View.OnClickListener {
         info.setClassName(MonthView.class.getName());
     }
 
+    /**
+     * Simple layout params class for MonthView, since every child is the same size
+     */
     private static class LayoutParams extends MarginLayoutParams {
-
-        /**
-         * {@inheritDoc}
-         */
-        public LayoutParams(Context c, AttributeSet attrs) {
-            super(c, attrs);
-        }
 
         /**
          * {@inheritDoc}
          */
         public LayoutParams() {
             super(WRAP_CONTENT, WRAP_CONTENT);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        public LayoutParams(ViewGroup.LayoutParams source) {
-            super(source);
         }
     }
 }

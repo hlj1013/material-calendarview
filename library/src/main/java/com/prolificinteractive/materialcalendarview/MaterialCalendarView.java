@@ -52,6 +52,12 @@ import java.util.List;
  * The date closest to the previous selection will become selected. This will also trigger the
  * {@linkplain com.prolificinteractive.materialcalendarview.OnDateChangedListener}
  * </p>
+ * <p>
+ * <strong>Note:</strong> this view may not be the exact size you specify. It will calculate the
+ * an appropriate tile size and measure the view based on off of that. The defining dimension can be
+ * missing up to 6 pixels! This is to make sure that all of the days are perfectly and equally
+ * square. So, make sure to use gravity to place this view appropriately when it is missing pixels.
+ * </p>
  */
 public class MaterialCalendarView extends ViewGroup {
 
@@ -122,7 +128,7 @@ public class MaterialCalendarView extends ViewGroup {
     private int arrowColor = Color.BLACK;
     private Drawable leftArrowMask;
     private Drawable rightArrowMask;
-    private int tileSize;
+    private int tileSize = -1;
 
     public MaterialCalendarView(Context context) {
         this(context, null);
@@ -167,9 +173,6 @@ public class MaterialCalendarView extends ViewGroup {
             int tileSize = a.getDimensionPixelSize(R.styleable.MaterialCalendarView_mcv_tileSize, -1);
             if(tileSize > 0) {
                 setTileSize(tileSize);
-            }
-            else {
-                setTileSizeDp(DEFAULT_TILE_SIZE_DP);
             }
 
             setArrowColor(a.getColor(
@@ -334,9 +337,13 @@ public class MaterialCalendarView extends ViewGroup {
      * @param tileSizeDp the new size for each tile in dips
      */
     public void setTileSizeDp(int tileSizeDp) {
-        setTileSize((int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, tileSizeDp, getResources().getDisplayMetrics()
-        ));
+        setTileSize(dpToPx(tileSizeDp));
+    }
+
+    private int dpToPx(int dp) {
+        return (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, dp, getResources().getDisplayMetrics()
+        );
     }
 
     /**
@@ -771,7 +778,7 @@ public class MaterialCalendarView extends ViewGroup {
         CalendarDay maxDate = null;
         CalendarDay selectedDate = null;
         int firstDayOfWeek = Calendar.SUNDAY;
-        int tileSizePx = 0;
+        int tileSizePx = -1;
         boolean topbarVisible = true;
 
         SavedState(Parcelable superState) {
@@ -943,8 +950,10 @@ public class MaterialCalendarView extends ViewGroup {
         final int viewTileHieght = getTopbarVisible() ?
                 (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1) :
                 MonthView.DEFAULT_MONTH_TILE_HEIGHT;
-        int measureTileSize = this.tileSize;
 
+        int measureTileSize = -1;
+
+        //If both of the demensions supply a size to use, we should size ourselves off of that
         switch (specWidthMode) {
             case MeasureSpec.AT_MOST:
             case MeasureSpec.EXACTLY: {
@@ -958,6 +967,18 @@ public class MaterialCalendarView extends ViewGroup {
                     }
                 }
                 break;
+            }
+        }
+
+        //We don't have a tile size yet, so we should pick one
+        if(measureTileSize <= 0) {
+            if(this.tileSize > 0) {
+                //Yay! The use has set one for us to use!
+                measureTileSize = this.tileSize;
+            }
+            else {
+                //Uh oh! We need default to something, quick!
+                measureTileSize = dpToPx(DEFAULT_TILE_SIZE_DP);
             }
         }
 
@@ -1020,7 +1041,7 @@ public class MaterialCalendarView extends ViewGroup {
      */
     @Override
     public LayoutParams generateLayoutParams(AttributeSet attrs) {
-        return new LayoutParams(getContext(), attrs);
+        return new LayoutParams(1);
     }
 
     @Override
@@ -1038,7 +1059,7 @@ public class MaterialCalendarView extends ViewGroup {
 
     @Override
     protected ViewGroup.LayoutParams generateLayoutParams(ViewGroup.LayoutParams p) {
-        return new LayoutParams(p);
+        return new LayoutParams(1);
     }
 
 
@@ -1054,27 +1075,19 @@ public class MaterialCalendarView extends ViewGroup {
         info.setClassName(MaterialCalendarView.class.getName());
     }
 
+    /**
+     * Simple layout params for MaterialCalendarView. The only variation for layout is height.
+     */
     private static class LayoutParams extends MarginLayoutParams {
 
         /**
-         * {@inheritDoc}
+         * Create a layout that matches parent width, and is X number of tiles high
+         *
+         * @param tileHeight view height in number of tiles
          */
-        public LayoutParams(Context c, AttributeSet attrs) {
-            super(c, attrs);
+        public LayoutParams(int tileHeight) {
+            super(MATCH_PARENT, tileHeight);
         }
 
-        /**
-         * {@inheritDoc}
-         */
-        public LayoutParams(int height) {
-            super(MATCH_PARENT, height);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        public LayoutParams(ViewGroup.LayoutParams source) {
-            super(source);
-        }
     }
 }
