@@ -126,8 +126,6 @@ public class MaterialCalendarView extends ViewGroup {
     private Drawable rightArrowMask;
     private int tileSize;
 
-    private LinearLayout root;
-
     public MaterialCalendarView(Context context) {
         this(context, null);
     }
@@ -250,17 +248,14 @@ public class MaterialCalendarView extends ViewGroup {
     }
 
     private void setupChildren() {
-        root = new LinearLayout(getContext());
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setClipChildren(false);
-        root.setClipToPadding(false);
-        addView(root);
+        setClipChildren(false);
+        setClipToPadding(false);
 
         topbar = new LinearLayout(getContext());
         topbar.setOrientation(LinearLayout.HORIZONTAL);
         topbar.setClipChildren(false);
         topbar.setClipToPadding(false);
-        root.addView(topbar, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1));
+        addView(topbar, new LayoutParams(1));
 
         buttonPast.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         buttonPast.setImageResource(R.drawable.mcv_action_previous);
@@ -277,9 +272,7 @@ public class MaterialCalendarView extends ViewGroup {
 
         pager.setId(R.id.mcv_pager);
         pager.setOffscreenPageLimit(1);
-        root.addView(pager, new LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, 0, MonthView.DEFAULT_MONTH_TILE_HEIGHT
-        ));
+        addView(pager, new LayoutParams(MonthView.DEFAULT_MONTH_TILE_HEIGHT));
     }
 
     /**
@@ -1205,7 +1198,7 @@ public class MaterialCalendarView extends ViewGroup {
      */
     @Override
     protected LayoutParams generateDefaultLayoutParams() {
-        return new LayoutParams(LayoutParams.MATCH_PARENT);
+        return new LayoutParams(1);
     }
 
     /**
@@ -1224,21 +1217,26 @@ public class MaterialCalendarView extends ViewGroup {
         maxHeight = Math.max(maxHeight, getSuggestedMinimumHeight());
         maxWidth = Math.max(maxWidth, getSuggestedMinimumWidth());
 
-        setMeasuredDimension(MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.EXACTLY));
+        setMeasuredDimension(
+                MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.EXACTLY)
+        );
 
         int count = getChildCount();
 
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
 
+            LayoutParams p = (LayoutParams) child.getLayoutParams();
+
             int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
                     getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
                     MeasureSpec.EXACTLY
             );
 
+            int height = p.height * tileSize;
             int childHeightMeasureSpec = MeasureSpec.makeMeasureSpec(
-                    getMeasuredHeight() - getPaddingTop() - getPaddingBottom(),
+                    height - getPaddingTop() - getPaddingBottom(),
                     MeasureSpec.EXACTLY
             );
 
@@ -1259,6 +1257,8 @@ public class MaterialCalendarView extends ViewGroup {
         final int parentTop = getPaddingTop();
         final int parentBottom = bottom - top - getPaddingBottom();
 
+        int childTop = parentTop;
+
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
             if (child.getVisibility() != GONE) {
@@ -1267,10 +1267,9 @@ public class MaterialCalendarView extends ViewGroup {
                 final int width = child.getMeasuredWidth();
                 final int height = child.getMeasuredHeight();
 
-                int childLeft = parentLeft;
-                int childTop = parentTop;
+                child.layout(parentLeft, childTop, parentLeft + width, childTop + height);
 
-                child.layout(childLeft, childTop, childLeft + width, childTop + height);
+                childTop += height;
             }
         }
     }
