@@ -242,9 +242,7 @@ class MonthView extends ViewGroup implements View.OnClickListener {
      */
 
     /**
-     * Returns a set of layout parameters with a width of
-     * {@link android.view.ViewGroup.LayoutParams#MATCH_PARENT},
-     * and a height of {@link android.view.ViewGroup.LayoutParams#MATCH_PARENT}.
+     * {@inheritDoc}
      */
     @Override
     protected LayoutParams generateDefaultLayoutParams() {
