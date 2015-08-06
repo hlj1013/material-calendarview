@@ -259,18 +259,16 @@ class MonthView extends ViewGroup implements View.OnClickListener {
         final int specHeightSize = MeasureSpec.getSize(heightMeasureSpec);
         final int specHeightMode = MeasureSpec.getMode(heightMeasureSpec);
 
+        //We expect to be somewhere inside a MaterialCalendarView, which should measure EXACTLY
         if(specHeightMode == MeasureSpec.UNSPECIFIED || specWidthMode == MeasureSpec.UNSPECIFIED) {
             throw new IllegalStateException("MonthView should never be left to decide it's size");
         }
 
-        int desiredTileWidth = specWidthSize / DEFAULT_DAYS_IN_WEEK;
-        int desiredTileHeight = specHeightSize / DEFAULT_MONTH_TILE_HEIGHT;
-        final int measureTileSize = Math.min(desiredTileWidth, desiredTileHeight);
+        //The spec width should be a correct multiple
+        final int measureTileSize = specWidthSize / DEFAULT_DAYS_IN_WEEK;
 
-        int measuredWidth = measureTileSize * DEFAULT_DAYS_IN_WEEK;
-        int measuredHeight = measureTileSize * DEFAULT_MONTH_TILE_HEIGHT;
-
-        setMeasuredDimension(measuredWidth, measuredHeight);
+        //Just use the spec sizes
+        setMeasuredDimension(specWidthSize, specHeightSize);
 
         int count = getChildCount();
         for (int i = 0; i < count; i++) {
@@ -313,6 +311,7 @@ class MonthView extends ViewGroup implements View.OnClickListener {
 
             childLeft += width;
 
+            //We should warp every so many children
             if(i % DEFAULT_DAYS_IN_WEEK == (DEFAULT_DAYS_IN_WEEK - 1)) {
                 childLeft = parentLeft;
                 childTop += height;
