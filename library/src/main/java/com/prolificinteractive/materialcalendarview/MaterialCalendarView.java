@@ -53,10 +53,10 @@ import java.util.List;
  * {@linkplain com.prolificinteractive.materialcalendarview.OnDateChangedListener}
  * </p>
  * <p>
- * <strong>Note:</strong> this view may not be the exact size you specify. It will calculate the
- * an appropriate tile size and measure the view based on off of that. The defining dimension can be
- * missing up to 6 pixels! This is to make sure that all of the days are perfectly and equally
- * square. So, make sure to use gravity to place this view appropriately when it is missing pixels.
+ * <strong>Note:</strong> if this view's size isn't divisible by 7,
+ * the contents will be centered inside such that the days in the calendar are equally square.
+ * For example, 600px isn't divisible by 7, so a tile size of 85 is choosen, making the calendar
+ * 595px wide. The extra 5px are distributed left and right to get to 600px.
  * </p>
  */
 public class MaterialCalendarView extends ViewGroup {
@@ -990,16 +990,12 @@ public class MaterialCalendarView extends ViewGroup {
         measuredWidth += getPaddingLeft() + getPaddingRight();
         measuredHeight += getPaddingTop() + getPaddingBottom();
 
-        //We need to clap our size to be only as big as we're allowed
-        if(specWidthMode != MeasureSpec.UNSPECIFIED) {
-            measuredWidth = Math.min(measuredWidth, specWidthSize);
-        }
-        if(specHeightMode != MeasureSpec.UNSPECIFIED) {
-            measuredHeight = Math.min(measuredHeight, specHeightSize);
-        }
-
         //Contract fulfilled, setting out measurements
-        setMeasuredDimension(measuredWidth, measuredHeight);
+        setMeasuredDimension(
+                //We clamp inline because we want to use un-clamped versions on the children
+                clampSize(measuredWidth, widthMeasureSpec),
+                clampSize(measuredHeight, heightMeasureSpec)
+        );
 
         int count = getChildCount();
 
@@ -1009,7 +1005,7 @@ public class MaterialCalendarView extends ViewGroup {
             LayoutParams p = (LayoutParams) child.getLayoutParams();
 
             int childWidthMeasureSpec = MeasureSpec.makeMeasureSpec(
-                    getMeasuredWidth() - getPaddingLeft() - getPaddingRight(),
+                    measuredWidth - getPaddingLeft() - getPaddingRight(),
                     MeasureSpec.EXACTLY
             );
 
@@ -1023,25 +1019,49 @@ public class MaterialCalendarView extends ViewGroup {
     }
 
     /**
+     * Clamp the size to the measure spec.
+     * @param size Size we want to be
+     * @param spec Measure spec to clamp against
+     * @return the appropriate size to pass to {@linkplain View#setMeasuredDimension(int, int)}
+     */
+    private static int clampSize(int size, int spec) {
+        int specMode = MeasureSpec.getMode(spec);
+        int specSize = MeasureSpec.getSize(spec);
+        switch (specMode) {
+            case MeasureSpec.EXACTLY: {
+                return specSize;
+            }
+            case MeasureSpec.AT_MOST: {
+                return Math.min(size, specSize);
+            }
+            case MeasureSpec.UNSPECIFIED:
+            default: {
+                return size;
+            }
+        }
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         final int count = getChildCount();
 
+        final int parentWidth = right - left;
         final int parentLeft = getPaddingLeft();
-        final int parentTop = getPaddingTop();
 
-        int childTop = parentTop;
+        int childTop = getPaddingTop();
 
         for (int i = 0; i < count; i++) {
             final View child = getChildAt(i);
-            final LayoutParams lp = (LayoutParams) child.getLayoutParams();
 
             final int width = child.getMeasuredWidth();
             final int height = child.getMeasuredHeight();
 
-            child.layout(parentLeft, childTop, parentLeft + width, childTop + height);
+            int delta = (parentWidth - width) / 2;
+
+            child.layout(parentLeft + delta, childTop, parentLeft + width, childTop + height);
 
             childTop += height;
         }
