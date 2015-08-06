@@ -944,6 +944,7 @@ public class MaterialCalendarView extends ViewGroup {
         final int specHeightSize = MeasureSpec.getSize(heightMeasureSpec);
         final int specHeightMode = MeasureSpec.getMode(heightMeasureSpec);
 
+        //We need to disregard padding for a while. This will be added back later
         final int desiredWidth = specWidthSize - getPaddingLeft() - getPaddingRight();
         final int desiredHeight = specHeightSize - getPaddingTop() - getPaddingBottom();
 
@@ -951,44 +952,54 @@ public class MaterialCalendarView extends ViewGroup {
                 (MonthView.DEFAULT_MONTH_TILE_HEIGHT + 1) :
                 MonthView.DEFAULT_MONTH_TILE_HEIGHT;
 
+        //Calculate independent tile sizes for later
+        int desiredTileWidth = desiredWidth / MonthView.DEFAULT_DAYS_IN_WEEK;
+        int desiredTileHeight = desiredHeight / viewTileHieght;
+
         int measureTileSize = -1;
 
-        //If both of the demensions supply a size to use, we should size ourselves off of that
-        switch (specWidthMode) {
-            case MeasureSpec.AT_MOST:
-            case MeasureSpec.EXACTLY: {
-                switch (specHeightMode) {
-                    case MeasureSpec.AT_MOST:
-                    case MeasureSpec.EXACTLY: {
-                        int desiredTileWidth = desiredWidth / MonthView.DEFAULT_DAYS_IN_WEEK;
-                        int desiredTileHeight = desiredHeight / viewTileHieght;
-                        measureTileSize = Math.min(desiredTileWidth, desiredTileHeight);
-                        break;
-                    }
-                }
-                break;
-            }
+        if(this.tileSize > 0) {
+            //We have a tileSize set, we should use that
+            measureTileSize = this.tileSize;
         }
-
-        //We don't have a tile size yet, so we should pick one
-        if(measureTileSize <= 0) {
-            if(this.tileSize > 0) {
-                //Yay! The use has set one for us to use!
-                measureTileSize = this.tileSize;
+        else if(specWidthMode == MeasureSpec.EXACTLY) {
+            if(specHeightMode == MeasureSpec.EXACTLY) {
+                //Pick the larger of the two explicit sizes
+                measureTileSize = Math.max(desiredTileWidth, desiredTileHeight);
             }
             else {
-                //Uh oh! We need default to something, quick!
-                measureTileSize = dpToPx(DEFAULT_TILE_SIZE_DP);
+                //Be the width size the user wants
+                measureTileSize = desiredTileWidth;
             }
         }
+        else if(specHeightMode == MeasureSpec.EXACTLY) {
+            //Be the height size the user wants
+            measureTileSize = desiredTileHeight;
+        }
 
+        //Uh oh! We need to default to something, quick!
+        if(measureTileSize <= 0) {
+            measureTileSize = dpToPx(DEFAULT_TILE_SIZE_DP);
+        }
+
+        //Calculate our size based off our measured tile size
         int measuredWidth = measureTileSize * MonthView.DEFAULT_DAYS_IN_WEEK;
         int measuredHeight = measureTileSize * viewTileHieght;
 
-        setMeasuredDimension(
-                measuredWidth + getPaddingLeft() + getPaddingRight(),
-                measuredHeight + getPaddingTop() + getPaddingBottom()
-        );
+        //Put padding back in from when we took it away
+        measuredWidth += getPaddingLeft() + getPaddingRight();
+        measuredHeight += getPaddingTop() + getPaddingBottom();
+
+        //We need to clap our size to be only as big as we're allowed
+        if(specWidthMode != MeasureSpec.UNSPECIFIED) {
+            measuredWidth = Math.min(measuredWidth, specWidthSize);
+        }
+        if(specHeightMode != MeasureSpec.UNSPECIFIED) {
+            measuredHeight = Math.min(measuredHeight, specHeightSize);
+        }
+
+        //Contract fulfilled, setting out measurements
+        setMeasuredDimension(measuredWidth, measuredHeight);
 
         int count = getChildCount();
 
